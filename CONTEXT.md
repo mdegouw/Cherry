@@ -2,7 +2,7 @@
 
 Cherry is Aartsen's B2B webshop: existing trade customers place pickup orders against branch-scoped stock and intraday-volatile prices held in the Thinkwise ERP. Cherry mirrors that truth and never masters it.
 
-This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)), how the catalogue is searched and filtered ([ADR-0005](./docs/adr/0005-catalogue-search.md)), and what happens to an order the ERP never took ([ADR-0006](./docs/adr/0006-order-reconciliation.md)).
+This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)), how the catalogue is searched and filtered ([ADR-0005](./docs/adr/0005-catalogue-search.md)), what happens to an order the ERP never took ([ADR-0006](./docs/adr/0006-order-reconciliation.md)), how marketing produces content ([ADR-0007](./docs/adr/0007-product-content-back-office.md), which supersedes part of ADR-0001), and how price and availability reach Cherry at all ([ADR-0008](./docs/adr/0008-price-and-availability-freshness.md)).
 
 Terms here govern code and specification, including the ERP API contract. They do not govern UI copy: the interface is Dutch, so it says _klant_ and _kist_ where the model says `Organisation` and `order unit`.
 
@@ -19,7 +19,7 @@ The ERP's immutable business key for an article. Never reissued, so it is the on
 _Avoid_: Article id, product id, SKU
 
 **Article group**:
-The ERP's own volumetric grouping of articles. Cherry uses it to set availability-band thresholds and to seed an article's default category; it is not a shop category.
+The ERP's own volumetric grouping of articles — a flat list of a few dozen. Cherry hangs exactly three staff-editable settings on it, on **one screen**: the availability-band threshold, the default category, and the search aliases. It is not a shop category.
 _Avoid_: Category, product group
 
 **Assortment**:
@@ -29,6 +29,10 @@ _Avoid_: Catalogue (which is the branch-suppressed, customer-facing view of the 
 **Facet**:
 A mirrored ERP article attribute a customer can filter on — origin, class, calibre, packaging, brand. Facets are ERP truth, never authored in Cherry.
 _Avoid_: Attribute, property, tag, variant axis
+
+**Availability band**:
+`available` | `limited` | `sold out` — the only availability a customer ever sees, bucketed Cherry-side from the ERP's quantity against one threshold per article group. **Redaction, not decision support**: it exists so a quantity never reaches the browser, which is why it is never a term of the sale and never stored on an order line. Stored on the mirrored stock row, because the catalogue query orders by it.
+_Avoid_: Stock level, quantity, availability, status
 
 **Catalogue query**:
 The single query that produces every customer-facing list of articles. Free text, category and facets are optional predicates that narrow it **together**, over a base that always applies the branch's suppressions. There is no separate search; typing does not clear a category or a facet.
@@ -45,12 +49,24 @@ _Avoid_: Synonym, keyword, tag, search term
 ### Content
 
 **Product content**:
-The presentation Cherry owns for an article: image, marketing copy, category and preparation/storage advice. Nothing a customer buys on is content.
+The presentation Cherry owns for an article: image, marketing copy, category and preparation/storage advice. Nothing a customer buys on is content. Authored on the **content group** by default and inherited; an article may override any of it, but nothing routes staff there.
 _Avoid_: Product data, product info, enrichment, PIM data
 
 **Content group**:
-An optional Cherry-owned grouping of articles that share an image and generic copy, used only so an article without its own content can inherit some. It carries no commercial meaning and never affects whether an article can be ordered.
-_Avoid_: Product, product family, variant group
+The vegetable, as opposed to the article codes it is sold in — a **derived** grouping of every article sharing an article group and the same facet-stripped description. It holds the image, generic copy and storage advice that its articles inherit, so a returning seasonal code arrives already merchandised. Nobody assembles one: staff only **merge** two that should have clustered and didn't. It carries no commercial meaning and never affects whether an article can be ordered.
+_Avoid_: Product, product family, variant group, assigning articles to one
+
+**Content residue**:
+What remains of an article's description once every facet value is removed — the vegetable's own name, and the content group's key. Derived by removing known structured values, never by parsing prose.
+_Avoid_: Base description, product name, normalised description
+
+**Content queue**:
+The list of content groups with no image, ordered by how many article codes each covers, descending — so the row at the top is the photograph that retires the most placeholders. Marketing's front door and their whole daily job; it is a production queue, never an operational health signal, and it never routes to a single article. The interface calls it _fotowerklijst_.
+_Avoid_: Worklist (which in Cherry means the operational catalogue-health lists), backlog, todo
+
+**Staging tray**:
+Uploaded images not yet assigned to a content group, shown as thumbnails so marketing can match hundreds of files to rows **by eye**. Deliberately the only bulk path: a photograph is self-describing where an article code is not, so matching on filenames would silently put a wrong photo on a wrong vegetable.
+_Avoid_: Media library, unassigned images, inbox, import
 
 **Category**:
 A node in Cherry's own browsing tree. Each article has exactly one primary category, at most two levels deep.
@@ -145,8 +161,12 @@ Cherry's own short, quotable identifier for an order — the only one a customer
 _Avoid_: Order number, order id, ERP reference (which is the other one)
 
 **Handover state**:
-Cherry's own state for getting an order into the ERP: `submitted` → `accepted` | `rejected` | `abandoned`. Usually terminal within minutes, but `submitted` has **no upper bound** — the retry never gives up, so an old `submitted` is a stuck order rather than an impossibility. Distinct from any ERP fulfilment status, which Cherry mirrors as an opaque code and never reasons about.
+Cherry's own state for getting an order into the ERP: `submitted` → `accepted` | `refused` | `rejected` | `abandoned`. Usually terminal within minutes, but `submitted` has **no upper bound** — the retry never gives up, so an old `submitted` is a stuck order rather than an impossibility. Distinct from any ERP fulfilment status, which Cherry mirrors as an opaque code and never reasons about.
 _Avoid_: Order status, state, fulfilment status
+
+**Refused order**:
+An order the ERP declined while the customer was still on the page — an over-order or a price divergence. Terminal and never retried: the customer is shown the real numbers, amends the basket, and submits again under a **new reference**, which is safe because a refusal is unambiguous about not having committed. Absent from order history and from every back-office surface, because there is nothing to action; kept only as evidence of how often shortfalls bite. The same ERP refusal arriving on a queued retry, with nobody present to answer it, is a **rejection** instead.
+_Avoid_: Rejected order (which is the terminal, customer-visible one), failed order, declined order
 
 **Stuck order**:
 An order still at `submitted` more than fifteen minutes after submission — real in Cherry, absent from the ERP, and unknown as a problem to the customer, who is planning around its slot. Not a state but a **query**, because the retry is still running and may yet succeed. Since the ERP is fast, stuck orders arrive as a **cohort** during an integration outage rather than one at a time. The interface calls one _vastgelopen_.
@@ -165,7 +185,7 @@ A snapshot complete enough to render and re-price itself without the article exi
 _Avoid_: Line item, order item, cart line (which is the pre-submit thing)
 
 **Shortfall**:
-The gap between what a customer asked for and what is actually available, revealed as a real number on cart-add and at submit when the article is at `limited` or below. Accepting one is a commercial fact and is stored on the order line.
+The gap between what a customer asked for and what is actually available, revealed as a real number on cart-add and at submit when the article is at `limited` or below. The two reveals have different authority: on cart-add it comes from the mirror and may be up to a minute optimistic, while at submit it comes from the ERP's own refusal and is the truth. Accepting one is a commercial fact and is stored on the order line.
 _Avoid_: Backorder, partial, stock-out, tekort (in code)
 
 **Estimated total**:
@@ -175,5 +195,13 @@ _Avoid_: Total, price, order value
 ### Integration
 
 **Mirror**:
-Cherry's local copy of ERP truth — articles, prices, stock, debtors — kept fresh by polling, since the ERP cannot push. Everything in the mirror is **advisory**: it exists so pages render without touching the ERP. The single atomic order call is where a commitment is actually made, and the ERP's answer there outranks anything the mirror said.
-_Avoid_: Cache (which implies a read-through that Cherry never does), sync, replica
+Cherry's local copy of ERP truth. Everything in it is **advisory**: it exists so pages render without touching the ERP, and the single atomic order call is where a commitment is actually made — the ERP's answer there outranks anything the mirror said. Filled two different ways, because Cherry mirrors what it queries and fetches what it merely displays: articles, stock and debtors are **polled** on a full walk, while price is **fetched per organisation on demand**.
+_Avoid_: Sync, replica, cache (for the polled part; the price half genuinely is read-through)
+
+**Sync pass**:
+One complete walk of one class of ERP data — stock every minute, articles and debtors hourly. Always a **full** read, never a delta: the volumes are small enough that this is cheaper than a change stamp, and it makes deletion detection and the search-text rebuild fall out for free. A pass either completes or asserts nothing at all, which is what lets an article's absence be trusted; a walk that dies mid-paging never reaches the point where it could mistake half a catalogue for a mass deletion.
+_Avoid_: Sync, import, delta, refresh, job
+
+**Price fetch**:
+The on-demand read of one organisation's entire price list from the ERP, keyed on its debtor number. Warmed at login, refreshed in the background while browsing, and **forced synchronously on the confirm page** so the price a customer commits against was ERP-verified seconds earlier. Never a background poll for everybody: price is keyed debtor × article, so the rows Cherry holds track who is actually shopping rather than how many debtors exist.
+_Avoid_: Price sync, price mirror, price cache, price feed

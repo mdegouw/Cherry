@@ -10,6 +10,8 @@ The ERP owns article truth; Cherry owns presentation. This ADR fixes exactly whe
 
 Decided in [#7](https://github.com/mdegouw/Cherry/issues/7).
 
+> **Partially superseded by [ADR-0007](./0007-product-content-back-office.md).** Two provisions below have changed: a **content group is derived**, not a grouping staff assemble (see "Content group"), and **copy and storage advice are group-level by default**, with the article-keyed version as the override (see "The seam rule" and "Content group"). Everything else here stands.
+
 ## The seam rule
 
 **Can this fact change without the article code changing?** If yes, it is volatile ERP truth and Cherry must never store it as content. If no, Cherry may own it.
