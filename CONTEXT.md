@@ -2,7 +2,7 @@
 
 Cherry is Aartsen's B2B webshop: existing trade customers place pickup orders against branch-scoped stock and intraday-volatile prices held in the Thinkwise ERP. Cherry mirrors that truth and never masters it.
 
-This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)) and Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)).
+This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — and the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)).
 
 Terms here govern code and specification, including the ERP API contract. They do not govern UI copy: the interface is Dutch, so it says _klant_ and _kist_ where the model says `Organisation` and `order unit`.
 
@@ -89,8 +89,12 @@ One person's login, belonging to exactly one organisation. Invited by email by s
 _Avoid_: Contact person, account, member, customer
 
 **Staff**:
-An Aartsen employee principal, with no organisation and no debtor number. Owns pickup hours, company closures, picking lead times, band thresholds and — as the marketing department — product content.
-_Avoid_: Admin, user (which means a customer's login), employee
+An Aartsen employee principal — its **own table and own auth guard**, never a row in `users`, with no organisation and no debtor number. One role in MVP, all rights across all branches: pickup hours, company closures, picking lead times, band thresholds, ERP status labels, organisation activation, user invitation and — as the marketing department — product content. An Aartsen employee is never a customer, so `staff` and `users` email addresses are disjoint, and that exclusion is enforced on invite. Signs in at `/beheer`; cannot act as a customer, ever.
+_Avoid_: Admin, user (which means a customer's login), employee, role (there is only one)
+
+**Audit entry**:
+An append-only record of one staff mutation, holding the causer, the moment, and both the old and new value. Every staff-editable thing produces them — commercial config and product content alike. Customer actions produce none: orders are immutable snapshots and a cart line already names who touched it. The interface calls the list _logboek_.
+_Avoid_: Change log, revision, history (which in Cherry means a customer's order history)
 
 ### Units
 
