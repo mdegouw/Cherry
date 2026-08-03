@@ -2,7 +2,9 @@
 
 Cherry is Aartsen's B2B webshop: existing trade customers place pickup orders against branch-scoped stock and intraday-volatile prices held in the Thinkwise ERP. Cherry mirrors that truth and never masters it.
 
-This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)); ordering, organisation and cart vocabulary is still open in [#10](https://github.com/mdegouw/Cherry/issues/10).
+This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)) and Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)).
+
+Terms here govern code and specification, including the ERP API contract. They do not govern UI copy: the interface is Dutch, so it says _klant_ and _kist_ where the model says `Organisation` and `order unit`.
 
 ## Language
 
@@ -74,6 +76,76 @@ _Avoid_: Cut-off, cut-off time, lead time, preparation time
 
 ### People
 
+**Organisation**:
+A trade customer of Aartsen as Cherry knows it — the entity that buys, owns the cart, and owns every order. Mirrors an ERP debtor and is activated for Cherry by staff. Holds no address and no VAT number: Cherry is pickup-only and the ERP invoices, so nothing reads them.
+_Avoid_: Customer, account, company, client, debtor (which is the ERP's record, not Cherry's)
+
+**Debtor**:
+The ERP's record of a trade customer, and the thing an organisation mirrors. Used only when talking about the ERP side of the seam — inside Cherry the entity is an organisation.
+_Avoid_: Using it as a synonym for organisation
+
+**User**:
+One person's login, belonging to exactly one organisation. Invited by email by staff. All users of an organisation are equal — there is no organisation-admin, and any user may edit the cart and submit orders on the organisation's behalf.
+_Avoid_: Contact person, account, member, customer
+
 **Staff**:
 An Aartsen employee principal, with no organisation and no debtor number. Owns pickup hours, company closures, picking lead times, band thresholds and — as the marketing department — product content.
 _Avoid_: Admin, user (which means a customer's login), employee
+
+### Units
+
+**Order unit**:
+The ERP-defined unit an article is bought in — kist, doos, zak, stuk. Immutable for a given article code, since changing the packaging mints a new code.
+_Avoid_: UOM, packaging unit, colli, crate
+
+**Price unit**:
+The unit an article's price is quoted per — kg, stuk. Frequently not the order unit, which is the whole reason both terms exist.
+_Avoid_: Unit, billing unit, UOM
+
+**Nominal weight**:
+The stated weight of one order unit, converting between order unit and price unit. Nominal because the actual weight is resolved at picking.
+_Avoid_: Weight, net weight, actual weight
+
+**Colli**:
+The trade's own count of order units — "4 colli". A quantity, not a unit type. Deliberately **not** a Cherry field name: the model says `quantity`, because an article sold per stuk or loose by weight is not colli in any natural reading. Fine in conversation and in Dutch UI copy where it fits.
+_Avoid_: Using it to name a unit type, or as a field name
+
+### Ordering
+
+**Cart**:
+Exactly one durable, shared basket per organisation — created on activation, emptied on submit, never expiring. Any user may edit it, so the chef can add through the afternoon and the manager submit in the evening. Holds no prices: everything but article code and quantity is rendered live from the mirror.
+_Avoid_: Basket, mand (in code), session cart, quote
+
+**Cart line**:
+One line per article code in a cart, carrying the quantity, who last touched it and when. Quantity is **set**, never incremented, so a colleague's number is always visible before it is changed. Concurrent edits resolve last-write-wins.
+_Avoid_: Cart item, basket line, line item
+
+**Order**:
+An organisation's submitted commitment to collect articles in a pickup slot, placed by one user. Created in Cherry **before** the ERP is called, so it survives an ERP outage.
+_Avoid_: Purchase, sale, transaction, quote
+
+**Order reference**:
+Cherry's own short, quotable identifier for an order — the only one a customer ever learns, and the idempotency key for the ERP call. The ERP is required to store and index it so branch staff can find an order by the number the customer reads out. The ERP's own reference is stored separately and shown only to staff.
+_Avoid_: Order number, order id, ERP reference (which is the other one)
+
+**Handover state**:
+Cherry's own state for getting an order into the ERP: `submitted` → `accepted` | `rejected`. Terminal within minutes. Distinct from any ERP fulfilment status, which Cherry mirrors as an opaque code and never reasons about.
+_Avoid_: Order status, state, fulfilment status
+
+**Order line**:
+A snapshot complete enough to render and re-price itself without the article existing — description as shown, quantity and order unit, nominal weight, the accepted price and its price unit, and the estimated total. Records the accepted shortfall when there was one. Does not record the availability band, which is display redaction rather than a term of the sale.
+_Avoid_: Line item, order item, cart line (which is the pre-submit thing)
+
+**Shortfall**:
+The gap between what a customer asked for and what is actually available, revealed as a real number on cart-add and at submit when the article is at `limited` or below. Accepting one is a commercial fact and is stored on the order line.
+_Avoid_: Backorder, partial, stock-out, tekort (in code)
+
+**Estimated total**:
+A line or order total computed from nominal weight, and therefore never the invoiced amount — actual weight resolves at picking. Stored as accepted rather than recomputed on display.
+_Avoid_: Total, price, order value
+
+### Integration
+
+**Mirror**:
+Cherry's local copy of ERP truth — articles, prices, stock, debtors — kept fresh by polling, since the ERP cannot push. Everything in the mirror is **advisory**: it exists so pages render without touching the ERP. The single atomic order call is where a commitment is actually made, and the ERP's answer there outranks anything the mirror said.
+_Avoid_: Cache (which implies a read-through that Cherry never does), sync, replica
