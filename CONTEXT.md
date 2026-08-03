@@ -2,7 +2,7 @@
 
 Cherry is Aartsen's B2B webshop: existing trade customers place pickup orders against branch-scoped stock and intraday-volatile prices held in the Thinkwise ERP. Cherry mirrors that truth and never masters it.
 
-This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)), and how the catalogue is searched and filtered ([ADR-0005](./docs/adr/0005-catalogue-search.md)).
+This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)), how the catalogue is searched and filtered ([ADR-0005](./docs/adr/0005-catalogue-search.md)), and what happens to an order the ERP never took ([ADR-0006](./docs/adr/0006-order-reconciliation.md)).
 
 Terms here govern code and specification, including the ERP API contract. They do not govern UI copy: the interface is Dutch, so it says _klant_ and _kist_ where the model says `Organisation` and `order unit`.
 
@@ -145,8 +145,20 @@ Cherry's own short, quotable identifier for an order — the only one a customer
 _Avoid_: Order number, order id, ERP reference (which is the other one)
 
 **Handover state**:
-Cherry's own state for getting an order into the ERP: `submitted` → `accepted` | `rejected`. Terminal within minutes. Distinct from any ERP fulfilment status, which Cherry mirrors as an opaque code and never reasons about.
+Cherry's own state for getting an order into the ERP: `submitted` → `accepted` | `rejected` | `abandoned`. Usually terminal within minutes, but `submitted` has **no upper bound** — the retry never gives up, so an old `submitted` is a stuck order rather than an impossibility. Distinct from any ERP fulfilment status, which Cherry mirrors as an opaque code and never reasons about.
 _Avoid_: Order status, state, fulfilment status
+
+**Stuck order**:
+An order still at `submitted` more than fifteen minutes after submission — real in Cherry, absent from the ERP, and unknown as a problem to the customer, who is planning around its slot. Not a state but a **query**, because the retry is still running and may yet succeed. Since the ERP is fast, stuck orders arrive as a **cohort** during an integration outage rather than one at a time. The interface calls one _vastgelopen_.
+_Avoid_: Failed order, pending order, error, queued order
+
+**Abandoned order**:
+A stuck order that staff have deliberately stopped retrying — the only thing that halts an unbounded retry, and the reason the state exists. Carries a required note, restores no cart, and has no effect in the ERP: if the order did commit there, staff must cancel it ERP-side themselves.
+_Avoid_: Cancelled order (Cherry models no cancellation), deleted order, failed order
+
+**Rejection code**:
+The keyed `MessageID` the ERP returns when it refuses an order. Rendered to staff **raw and always**, with a Dutch label as a gloss when Cherry's lookup knows the code — never degraded to silence, unlike the customer-facing status code, because to staff it is the only actionable thing on the screen. Never shown to a customer, who is told the order did not go through and to phone the branch.
+_Avoid_: Error message, error code, reason
 
 **Order line**:
 A snapshot complete enough to render and re-price itself without the article existing — description as shown, quantity and order unit, nominal weight, the accepted price and its price unit, and the estimated total. Records the accepted shortfall when there was one. Does not record the availability band, which is display redaction rather than a term of the sale.

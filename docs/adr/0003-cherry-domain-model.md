@@ -115,6 +115,8 @@ Two things get called "order status" and only one is Cherry's.
 
 **`handover_state`** — `submitted → accepted | rejected`. About getting the order *into* the ERP. Cherry owns it, branches on it, and it reaches a terminal value within minutes.
 
+> **Amended by [ADR-0006](./0006-order-reconciliation.md).** A fourth terminal value, `abandoned`, exists — staff stopping an unbounded retry — and `submitted` has **no upper time bound**, so "terminal within minutes" is the common case rather than a guarantee.
+
 **`erp_status_code`** — a nullable mirrored code, polled for non-terminal orders, rendered through a Cherry-owned lookup to a Dutch label and **simply not shown when the code is unrecognised**. No Cherry logic ever reads this field.
 
 Modelling a full `accepted → picked → ready → collected` lifecycle was rejected: Cherry would own a workflow it cannot observe or validate, every state it names becomes a state the Thinkwise team must commit to producing, and every ERP process change becomes a Cherry mapping bug. Under the passthrough, an unknown or newly-added ERP state degrades to silence.
