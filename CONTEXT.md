@@ -2,7 +2,7 @@
 
 Cherry is Aartsen's B2B webshop: existing trade customers place pickup orders against branch-scoped stock and intraday-volatile prices held in the Thinkwise ERP. Cherry mirrors that truth and never masters it.
 
-This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — and the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)).
+This glossary grows as decisions land. The catalogue and content terms are settled ([ADR-0001](./docs/adr/0001-cherry-owned-product-content.md)), as is fulfilment ([ADR-0002](./docs/adr/0002-pickup-slot-and-cut-off-rule.md)), Cherry's own domain — organisation, cart and order ([ADR-0003](./docs/adr/0003-cherry-domain-model.md)) — the staff principal ([ADR-0004](./docs/adr/0004-staff-principal-and-audit.md)), and how the catalogue is searched and filtered ([ADR-0005](./docs/adr/0005-catalogue-search.md)).
 
 Terms here govern code and specification, including the ERP API contract. They do not govern UI copy: the interface is Dutch, so it says _klant_ and _kist_ where the model says `Organisation` and `order unit`.
 
@@ -29,6 +29,18 @@ _Avoid_: Catalogue (which is the branch-suppressed, customer-facing view of the 
 **Facet**:
 A mirrored ERP article attribute a customer can filter on — origin, class, calibre, packaging, brand. Facets are ERP truth, never authored in Cherry.
 _Avoid_: Attribute, property, tag, variant axis
+
+**Catalogue query**:
+The single query that produces every customer-facing list of articles. Free text, category and facets are optional predicates that narrow it **together**, over a base that always applies the branch's suppressions. There is no separate search; typing does not clear a category or a facet.
+_Avoid_: Search, search query, filter, product listing
+
+**Search text**:
+A stored, normalised column per mirrored article holding everything a free-text query may match: the ERP description, the article code, the canonical facet values, the category name and the article-group alias. Doubled vowels are collapsed in it and in the query, so Dutch singulars reach their plurals. Marketing copy and storage advice are deliberately absent — findability must not depend on how well an article is merchandised.
+_Avoid_: Search index, index, keywords, tsvector
+
+**Article-group alias**:
+Staff-typed alternative search terms attached to an ERP article group, folded into the search text of every article in it. One row covers a whole origin/class/calibre fan-out. It is a remedy for a reported miss, never a launch requirement, and it carries no commercial meaning.
+_Avoid_: Synonym, keyword, tag, search term
 
 ### Content
 
